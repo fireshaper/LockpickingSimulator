@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lockpick Simulator</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <header class="bar">
+      <h1>Lockpick Simulator</h1>
+      <button id="choose-lock" type="button" aria-haspopup="dialog">
+        <span>Lock</span> <b id="lock-name"></b>
+      </button>
+      <label>
+        View
+        <select id="view">
+          <option value="cutaway">Cutaway</option>
+          <option value="xray">X-ray</option>
+          <option value="solid">Solid (blind)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="guide-on" checked /> Guided lesson</label>
+      <label class="check"><input type="checkbox" id="hints" checked /> Pin state hints</label>
+      <label class="check"><input type="checkbox" id="sound" checked /> Sound</label>
+      <label class="check"><input type="checkbox" id="front" checked /> Inset views</label>
+      <span class="spacer"></span>
+      <button id="retry" type="button">Reset lock</button>
+      <button id="newlock" type="button">New pinning</button>
+    </header>
+
+    <aside class="panel" id="lesson">
+      <h2 id="lesson-title"></h2>
+      <p id="lesson-text"></p>
+      <section id="guide">
+        <h3><span>Lesson</span><b id="guide-progress"></b></h3>
+        <ol id="guide-steps"></ol>
+        <p id="guide-coach" role="status" hidden></p>
+      </section>
+      <h3>Controls</h3>
+      <dl class="keys">
+        <dt>Mouse</dt>
+        <dd id="help-mouse">Move the pick</dd>
+        <dt>Wheel · W / S</dt>
+        <dd>More / less tension</dd>
+        <dt id="help-tool-key">T</dt>
+        <dd id="help-tool">Next pick in the case</dd>
+        <dt>Space</dt>
+        <dd>Drop all tension</dd>
+        <dt>Right-drag</dt>
+        <dd>Orbit the camera</dd>
+        <dt>+ / −</dt>
+        <dd>Zoom</dd>
+        <dt>R · N</dt>
+        <dd>Reset · new pinning</dd>
+      </dl>
+      <h3>What just happened</h3>
+      <ul id="log"></ul>
+    </aside>
+
+    <div id="front-view"><span>Front view · turn ×10</span><b id="front-deg">0.00°</b></div>
+
+    <div id="side-view" hidden><span>Side row · from above</span></div>
+
+    <aside id="case" aria-label="Pick case">
+      <h3>
+        <span>Pick case</span>
+        <span class="case-buttons">
+          <button id="case-edit" type="button">Edit</button>
+          <button id="case-roll" type="button" aria-expanded="true" aria-controls="case-body">Roll up</button>
+        </span>
+      </h3>
+      <div class="case-open" id="case-body">
+        <div class="case-half" id="case-picks" role="group" aria-label="Picks"></div>
+        <div class="case-spine"></div>
+        <div class="case-half" id="case-tension" role="group" aria-label="Tension tools"></div>
+      </div>
+      <p id="case-using"></p>
+      <p id="case-note" role="status"></p>
+    </aside>
+
+    <footer class="gauges">
+      <div class="gauge">
+        <div class="gauge-head"><span>Tension</span><b id="tension-val">0 mN·m</b></div>
+        <input id="tension" type="range" min="0" max="100" step="0.5" value="0" />
+        <div class="zones"><span>feather</span><span>light</span><span>medium</span><span>heavy</span></div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-head"><span id="force-label">Pick force</span><b id="force-val">0.0 N</b></div>
+        <div class="meter"><i id="force-bar"></i></div>
+        <div class="zones"><span>springy = loose pin</span><span>stiff = binding</span></div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-head"><span>Plug rotation</span><b id="rot-val">0.00°</b></div>
+        <div class="meter"><i id="rot-bar"></i></div>
+        <div class="zones"><span>0°</span><span>false set ≈ 3–5°</span><span>6°</span></div>
+      </div>
+      <div class="gauge pins">
+        <div class="gauge-head"><span id="pins-label">Pins</span><b id="pins-val"></b></div>
+        <div id="pin-dots"></div>
+        <div class="zones legend">
+          <span class="binding">binding</span><span class="set">set</span><span class="overset" id="legend-overset">overset</span>
+        </div>
+      </div>
+    </footer>
+
+    <div id="open-banner" hidden>
+      <div>
+        <h2>Open</h2>
+        <p id="open-stats"></p>
+        <button id="open-next" type="button">Next lesson</button>
+        <button id="open-retry" type="button">Same lock again</button>
+        <button id="open-new" type="button">New pinning</button>
+      </div>
+    </div>
+
+    <dialog id="welcome" aria-labelledby="welcome-title">
+      <h2 id="welcome-title">Welcome to the Lockpicking Simulator</h2>
+      <p>
+        Practise picking pin tumbler, dimple and disc detainer locks, with a cutaway view that shows what
+        each pin or disc is doing as you work.
+      </p>
+      <p>
+        <strong>This is only a simulator.</strong> It models how locks behave, but it is not a real lock:
+        the feel, tolerances and forces are approximations, and skill here will not transfer exactly to
+        the real thing.
+      </p>
+      <button id="welcome-start" type="button" autofocus>Start picking</button>
+    </dialog>
+
+    <dialog id="chooser" aria-labelledby="chooser-title">
+      <h2 id="chooser-title">Choose a lock</h2>
+      <div id="chooser-list"></div>
+      <button id="chooser-close" type="button">Keep the current lock</button>
+    </dialog>
+
+    <dialog id="builder" aria-labelledby="builder-title">
+      <h2 id="builder-title">Build a lock</h2>
+      <p>
+        A pin tumbler lock. Choose how many pin stacks it has, then choose the driver for each stack,
+        click a key pin to make it serrated, and pick a length for each key pin: 1 is the shortest,
+        9 the longest. A longer key pin means a
+        deeper cut in the key, and less lift to set.
+      </p>
+      <div class="builder-count">
+        <span>Pin stacks</span>
+        <button id="builder-less" type="button" aria-label="One fewer pin stack">&minus;</button>
+        <b id="builder-n" aria-live="polite">5</b>
+        <button id="builder-more" type="button" aria-label="One more pin stack">+</button>
+      </div>
+      <div id="builder-stacks"></div>
+      <div class="builder-all">
+        <span>Set all drivers</span>
+        <select id="builder-all-drivers" aria-label="Set every driver to"></select>
+        <span>Set all key pins</span>
+        <button type="button" data-all="key" data-type="standard">Standard</button>
+        <button type="button" data-all="key" data-type="serrated">Serrated</button>
+        <span>Lengths</span>
+        <button id="builder-random" type="button">All random</button>
+      </div>
+      <div class="builder-actions">
+        <button id="builder-cancel" type="button">Cancel</button>
+        <button id="builder-go" type="button">Build it</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
