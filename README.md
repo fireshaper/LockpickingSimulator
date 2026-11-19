@@ -79,3 +79,7 @@ TypeScript, [Three.js](https://threejs.org/) and [Vite](https://vite.dev/), with
 | `tests/` | Tests that pick the locks and check how they behave |
 
 The simulation works in SI units and the rendering in millimetres. Dimensions are estimates based on common locks, not measurements of any particular product.
+
+## Licence
+
+[MIT](LICENSE)
