@@ -61,6 +61,7 @@ Other commands:
 | T | Next pick in the case |
 | Right-drag | Orbit the camera |
 | + / − | Zoom |
+| C | Reset the camera |
 | R | Reset the lock |
 | N | New pinning |
 

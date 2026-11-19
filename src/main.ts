@@ -1044,6 +1044,7 @@ window.addEventListener('keydown', (e) => {
   } else if (k === 'r') resetLock();
   else if (k === 'n') loadLock(true);
   else if (k === 't') nextTool();
+  else if (k === 'c') view.resetCamera(spec);
   else if (k === '+' || k === '=') view.zoom(0.9);
   else if (k === '-' || k === '_') view.zoom(1.1);
   else {
@@ -1093,6 +1094,10 @@ ui.front.addEventListener('change', () => {
 });
 $('retry').addEventListener('click', resetLock);
 $('newlock').addEventListener('click', () => loadLock(true));
+$<HTMLButtonElement>('reset-camera').addEventListener('click', (e) => {
+  view.resetCamera(spec);
+  (e.currentTarget as HTMLButtonElement).blur();
+});
 $('open-retry').addEventListener('click', resetLock);
 $('open-new').addEventListener('click', () => loadLock(true));
 ui.openNext.addEventListener('click', () => {
@@ -1237,6 +1242,7 @@ function updateHud() {
 // Expose for debugging and automated checks.
 Object.assign(window, {
   __lock: {
+    view,
     get sim() {
       return sim();
     },
