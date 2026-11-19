@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { ADDITION, Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
+  driverProfile,
   FLAG_SHAFT_R,
   GEO,
   TELESCOPE,
@@ -317,10 +318,16 @@ export function buildKeyPin(pin: PinSpec) {
   return lathe(pts);
 }
 
-/** Driver pin, lathed from its physics profile. Origin at the bottom face. */
+/**
+ * Driver pin, lathed from its physics profile. Origin at the bottom face.
+ * A serrated driver's grooves bite far less than they are cut, so it is
+ * drawn from its full-depth outline.
+ */
 export function buildDriver(pin: PinSpec) {
   const r = (pin.part === 'inner' ? TELESCOPE.innerR : GEO.pinR) * MM;
-  const profile: Array<[number, number]> = pin.profile.map(([s, d]) => [r - d * MM, s * MM]);
+  const outline =
+    pin.driver === 'serrated' ? driverProfile('serrated', pin.driverLen) : pin.profile;
+  const profile: Array<[number, number]> = outline.map(([s, d]) => [r - d * MM, s * MM]);
   if (pin.part === 'outer') return halfShell(profile, TELESCOPE.boreR * MM);
   return lathe([[0, 0], ...profile, [0, pin.driverLen * MM]]);
 }

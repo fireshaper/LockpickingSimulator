@@ -792,6 +792,84 @@ describe('security drivers', () => {
   });
 });
 
+describe('serrated drivers', () => {
+  const stacks = [0, 1, 2, 3, 4].map((i) => ({
+    key: 'standard' as const,
+    driver: i % 2 ? ('serrated' as const) : ('standard' as const),
+    length: 5,
+  }));
+
+  it('bite less than the gap to the next pin to bind', () => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const spec = generateLock(customPreset(stacks), seed);
+      const sorted = spec.pins.map((p) => p.clearance).sort((a, b) => a - b);
+      for (const pin of spec.pins.filter((p) => p.driver === 'serrated')) {
+        const bite = Math.max(...pin.profile.slice(2, -2).map(([, d]) => d));
+        const next = sorted.find((c) => c > pin.clearance);
+        expect(bite).toBeGreaterThan(5e-6);
+        if (next !== undefined) expect(bite).toBeLessThan(next - pin.clearance);
+      }
+    }
+  });
+
+  it('click on the way up without dropping a pin that is already set', () => {
+    for (const torque of [0.006, 0.012]) {
+      for (const seed of [1, 2, 3, 4]) {
+        const sim = new LockSim(generateLock(customPreset(stacks), seed));
+        const pk = sim.spec.pick;
+        const input: SimInput = { torque, pickX: pk.minX, pickY: pk.minY, pickIn: true };
+        let drops = 0;
+        let clicks = 0;
+        const step = (lifting = -1) => {
+          const before = sim.theta;
+          for (const e of sim.step(FRAME, input)) if (e.type === 'drop') drops++;
+          // A click: the plug turns a little while the pin being lifted is still not set.
+          if (
+            lifting >= 0 &&
+            sim.spec.pins[lifting].driver === 'serrated' &&
+            sim.yd[lifting] < GEO.shearY &&
+            (sim.theta - before) * GEO.plugR > 2e-6
+          )
+            clicks++;
+        };
+        for (let t = 0; t < 0.2; t += FRAME) step();
+        for (let round = 0; round < 8 && !sim.opened; round++) {
+          let target = -1;
+          let best = 0.05;
+          for (let i = 0; i < sim.n; i++) {
+            if (sim.status(i) === 'binding' && sim.normal[i] > best) {
+              best = sim.normal[i];
+              target = i;
+            }
+          }
+          if (target < 0) break;
+          input.pickX = sim.spec.pins[target].x;
+          input.pickY = pk.minY;
+          for (let t = 0; t < 0.05; t += FRAME) step();
+          while (
+            !sim.opened &&
+            sim.status(target) !== 'set' &&
+            sim.yd[target] < GEO.shearY &&
+            input.pickY < pk.maxY
+          ) {
+            input.pickY += 4e-3 * FRAME;
+            step(target);
+          }
+          while (input.pickY > pk.minY && !sim.opened) {
+            input.pickY -= 20e-3 * FRAME;
+            step();
+          }
+          for (let t = 0; t < 0.2; t += FRAME) step();
+        }
+        const at = `torque ${torque}, seed ${seed}`;
+        expect(sim.opened, at).toBe(true);
+        expect(drops, at).toBe(0);
+        expect(clicks, at).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
 describe('wafer locks', () => {
   const wafers = PRESETS.filter((q) => q.kind === 'wafer');
 

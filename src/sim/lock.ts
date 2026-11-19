@@ -600,14 +600,36 @@ function spoolProfile(len: number, flange: number): Profile {
   ];
 }
 
-function serratedProfile(len: number): Profile {
-  const depth = 0.18 * mm;
+/** How deep a serrated driver's grooves are drawn. */
+export const SERRATION_DRAWN = 0.18 * mm;
+/** The most a serration lets the plug turn, as an arc at the shear line. */
+export const SERRATION_BITE = 0.05 * mm;
+/** A serration's bite as a share of the gap to the next pin to bind. */
+const SERRATION_SHARE = 0.7;
+
+/**
+ * Serrated driver. `depth` is how far the plug can turn into a groove. A
+ * serration is a click on the way up, not a false set: unlike a spool's waist
+ * it must not let the plug turn far enough for the next pin to bind, or pins
+ * set while it sits in a groove would drop when it is lifted out again. The
+ * tolerances here are far tighter than the grooves look, so a lock gives each
+ * serrated driver a bite smaller than the gap to the next pin (see
+ * generateLock) and the full-depth outline is only used for drawing.
+ */
+function serratedProfile(len: number, depth = SERRATION_DRAWN): Profile {
   const pts: Array<readonly [number, number]> = [
     [0, CHAMFER],
     [CHAMFER_LEN, 0],
   ];
+  // Groove walls at about 60 degrees, however shallow the groove.
+  const wall = Math.min(0.1 * mm, depth * 0.6);
   for (let g = 0.7 * mm; g < len - 0.9 * mm; g += 0.62 * mm) {
-    pts.push([g - 0.2 * mm, 0], [g - 0.1 * mm, depth], [g + 0.1 * mm, depth], [g + 0.2 * mm, 0]);
+    pts.push(
+      [g - 0.1 * mm - wall, 0],
+      [g - 0.1 * mm, depth],
+      [g + 0.1 * mm, depth],
+      [g + 0.1 * mm + wall, 0],
+    );
   }
   pts.push([len - CHAMFER_LEN, 0], [len, CHAMFER]);
   return pts;
@@ -711,12 +733,13 @@ export function driverProfile(
   type: DriverType,
   len: number,
   spoolFlange = GEO.spoolFlange,
+  serrationDepth = SERRATION_DRAWN,
 ): Profile {
   switch (type) {
     case 'spool':
       return spoolProfile(len, spoolFlange);
     case 'serrated':
-      return serratedProfile(len);
+      return serratedProfile(len, serrationDepth);
     case 'spoolerrated':
       return spoolerratedProfile(len, spoolFlange);
     case 'mushroom':
@@ -1085,6 +1108,13 @@ export function generateLock(preset: LockPreset, seed: number): LockSpec {
     }
   }
 
+  // A serration bites less than the gap to the next pin to bind, so the plug
+  // turning into one never reaches that pin.
+  const bite = clearance.map((own) => {
+    const next = Math.min(...clearance.filter((other) => other > own));
+    return Math.min(SERRATION_BITE, SERRATION_SHARE * (next - own));
+  });
+
   const pins: PinSpec[] = [];
   for (let i = 0; i < n; i++) {
     const side = layout[i].row === 'side';
@@ -1103,7 +1133,7 @@ export function generateLock(preset: LockPreset, seed: number): LockSpec {
       bitting: bitting[i],
       driver: types[i],
       driverLen: DRIVER_LEN,
-      profile: driverProfile(types[i], DRIVER_LEN, geo.spoolFlange),
+      profile: driverProfile(types[i], DRIVER_LEN, geo.spoolFlange, bite[i]),
       clearance: clearance[i],
       springK: 100 + rnd() * 40,
       springFree: 13 * mm,
