@@ -24,7 +24,7 @@ The locks are modelled procedurally and picked with a physics simulation, not sc
 
 **A lock builder**
 
-Build your own pin tumbler lock with one to seven stacks. For each stack you choose the key pin (standard or serrated), its length, and the driver: standard, spool, serrated, spool-errated, mushroom, double mushroom, barrel, gin or tree.
+Build your own pin tumbler lock with one to seven stacks. For each stack you choose the key pin (standard or serrated), its length, and the driver: standard, spool, serrated, spool-errated, mushroom, double mushroom, barrel, gin or tree. The core can be countermilled, so that drivers catch on a ledge just below the shear line.
 
 **Views and feedback**
 

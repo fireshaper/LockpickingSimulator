@@ -197,7 +197,26 @@ export interface LockSpec {
   pick: PickSpec;
   /** A tension tool lying in the bottom of the keyway, in the pick's way. */
   wrench?: WrenchSpec | null;
+  /** The core's chambers are countermilled: counterbored at the shear line. */
+  countermill?: CountermillSpec | null;
 }
+
+/**
+ * Countermilling: the top of each chamber in the core is bored out wider, down
+ * to a ledge a little below the shear line. A driver whose bottom end has come
+ * up past the ledge is loose in the wider bore, so the plug turns on as if the
+ * pin had set, and the driver, let go, lands on the ledge instead of dropping
+ * back. It still crosses the shear line and has to be lifted the rest of the
+ * way, past the rim of the bore, before it is really set.
+ */
+export interface CountermillSpec {
+  /** How far below the shear line the ledge is. */
+  depth: number;
+  /** How much further the plug can turn (as an arc) with a driver in the wider bore. */
+  width: number;
+}
+
+export const COUNTERMILL: CountermillSpec = { depth: 0.6e-3, width: 0.15e-3 };
 
 /** The blade of a bottom-of-keyway tension tool, as the pick meets it. */
 export interface WrenchSpec {
@@ -799,6 +818,8 @@ export interface LockPreset {
   telescoping?: boolean;
   /** A lock someone built: the pins in each stack, front to back. */
   stacks?: StackChoice[];
+  /** The core's chambers are countermilled. */
+  countermilled?: boolean;
 }
 
 /** The two pins someone chose for one stack of a lock they built. */
@@ -821,7 +842,7 @@ export const MAX_STACKS = 7;
 const COUNT_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven'];
 
 /** Preset for a pin tumbler lock built stack by stack. The key cuts stay random. */
-export function customPreset(stacks: StackChoice[]): LockPreset {
+export function customPreset(stacks: StackChoice[], countermilled = false): LockPreset {
   const n = stacks.length;
   // Security drivers first, standard last.
   const drivers = [...DRIVER_TYPES.slice(1), DRIVER_TYPES[0]].flatMap((t) => {
@@ -839,12 +860,17 @@ export function customPreset(stacks: StackChoice[]): LockPreset {
       stacks.every((q) => q.length)
         ? 'The binding order is random each time.'
         : 'The lengths left to chance (?) and the binding order are random each time.'
+    }${
+      countermilled
+        ? ' The core is countermilled: each driver catches on a ledge just below the shear line, with a click that is not a set.'
+        : ''
     }`,
     pinCount: n,
     toleranceGap: 0.02 * mm,
     spools: 0,
     serrated: 0,
     stacks,
+    countermilled,
   };
 }
 
@@ -1149,5 +1175,6 @@ export function generateLock(preset: LockPreset, seed: number): LockSpec {
     pins,
     plugLen: geo.firstPinX + (topCount - 1) * geo.pitch + geo.tailLen,
     seed,
+    countermill: preset.countermilled && preset.kind === 'pin' ? COUNTERMILL : null,
   };
 }

@@ -941,6 +941,26 @@ input[type='range'] {
   border-color: rgba(217, 172, 82, 0.6);
 }
 
+.builder-core {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.builder-core input {
+  margin-top: 2px;
+}
+
+.builder-core b {
+  display: block;
+  color: var(--text, inherit);
+  font-size: 13px;
+}
+
 .builder-all {
   display: flex;
   flex-wrap: wrap;

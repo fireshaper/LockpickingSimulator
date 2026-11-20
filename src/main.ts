@@ -57,6 +57,7 @@ const ui = {
   builderStacks: $('builder-stacks'),
   builderGo: $<HTMLButtonElement>('builder-go'),
   builderRandom: $<HTMLButtonElement>('builder-random'),
+  builderCountermill: $<HTMLInputElement>('builder-countermill'),
   builderAllDrivers: $<HTMLSelectElement>('builder-all-drivers'),
   view: $<HTMLSelectElement>('view'),
   case: $('case'),
@@ -231,12 +232,14 @@ function keyOutline(type: KeyPinType, length: number): Array<readonly [number, n
 /** The design: how many stacks, and the pins chosen for each (kept even when hidden). */
 const design = {
   count: 5,
+  countermilled: false,
   stacks: Array.from({ length: MAX_STACKS }, (): StackChoice => ({ key: 'standard', driver: 'standard' })),
 };
 try {
   const saved = JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? 'null');
   if (saved && Array.isArray(saved.stacks)) {
     if (Number.isInteger(saved.count)) design.count = Math.min(MAX_STACKS, Math.max(1, saved.count));
+    design.countermilled = saved.countermilled === true;
     saved.stacks.slice(0, MAX_STACKS).forEach((q: Partial<StackChoice> | null, i: number) => {
       if (q && DRIVER_TYPES.includes(q.driver as DriverType)) design.stacks[i].driver = q.driver as DriverType;
       if (q && KEY_TYPES.includes(q.key as KeyPinType)) design.stacks[i].key = q.key as KeyPinType;
@@ -247,7 +250,11 @@ try {
 } catch {
   // Nothing saved, or unreadable: start from five standard stacks.
 }
-const designPreset = () => customPreset(design.stacks.slice(0, design.count).map((q) => ({ ...q })));
+const designPreset = () =>
+  customPreset(
+    design.stacks.slice(0, design.count).map((q) => ({ ...q })),
+    design.countermilled,
+  );
 
 const CUSTOM = LOCKS.length;
 LOCKS.push({
@@ -259,11 +266,16 @@ LOCKS.push({
 });
 
 /** What the builder window is showing, until "Build it" makes it the design. */
-const draft = { count: design.count, stacks: design.stacks.map((q) => ({ ...q })) };
+const draft = {
+  count: design.count,
+  countermilled: design.countermilled,
+  stacks: design.stacks.map((q) => ({ ...q })),
+};
 let built = false;
 
 function renderBuilder() {
   ui.builderN.textContent = String(draft.count);
+  ui.builderCountermill.checked = draft.countermilled;
   ui.builderLess.disabled = draft.count <= 1;
   ui.builderMore.disabled = draft.count >= MAX_STACKS;
   ui.builderStacks.replaceChildren(
@@ -334,6 +346,7 @@ function renderBuilder() {
 
 function openBuilder() {
   draft.count = design.count;
+  draft.countermilled = design.countermilled;
   draft.stacks = design.stacks.map((q) => ({ ...q }));
   built = false;
   renderBuilder();
@@ -364,6 +377,9 @@ ui.builderAllDrivers.addEventListener('change', () => {
   ui.builderAllDrivers.value = '';
   renderBuilder();
 });
+ui.builderCountermill.addEventListener('change', () => {
+  draft.countermilled = ui.builderCountermill.checked;
+});
 ui.builderRandom.addEventListener('click', () => {
   for (const q of draft.stacks) q.length = undefined;
   renderBuilder();
@@ -371,6 +387,7 @@ ui.builderRandom.addEventListener('click', () => {
 $('builder-cancel').addEventListener('click', () => ui.builder.close());
 ui.builderGo.addEventListener('click', () => {
   design.count = draft.count;
+  design.countermilled = draft.countermilled;
   design.stacks = draft.stacks.map((q) => ({ ...q }));
   try {
     localStorage.setItem(CUSTOM_KEY, JSON.stringify(design));
@@ -812,7 +829,8 @@ function resetState() {
 // --- Guided lesson ---------------------------------------------------------------
 function startLesson() {
   const id = LOCKS[presetIndex].id;
-  const lesson = id === 'custom' ? customLesson(lessonState.pins) : lessonFor(id);
+  const lesson =
+    id === 'custom' ? customLesson(lessonState.pins, !!pinSim?.spec.countermill) : lessonFor(id);
   runner = lesson ? new LessonRunner(lesson) : null;
   shownStep = -1;
   showGuide();

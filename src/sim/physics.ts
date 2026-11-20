@@ -361,6 +361,7 @@ export class LockSim {
     const S = G.shearY;
     const arc = G.plugR * this.theta;
     const pins = this.spec.pins;
+    const cm = this.spec.countermill;
     let sumN = 0;
 
     for (let i = 0; i < this.n; i++) {
@@ -389,10 +390,30 @@ export class LockSim {
       } else if (s > 0) {
         body = BODY_DRIVER;
         evalProfile(p.profile, s, prof);
-        const pen = arc - (p.clearance + prof.depth);
+        let depth = prof.depth;
+        let slope = prof.slope;
+        if (cm && !p.wafer) {
+          if (s <= cm.depth) {
+            // The driver's end is up in the wider bore: only the bore's rim, at
+            // the shear line, can pinch it now, and that is further round.
+            depth += cm.width;
+          } else {
+            // The driver reaches down past the ledge. The plug can turn as far
+            // as the ledge allows (onto the edge of a driver resting on it, or
+            // into a groove that is level with it), but no further than the rim.
+            evalProfile(p.profile, s - cm.depth, prof);
+            if (prof.depth > depth) {
+              if (prof.depth < depth + cm.width) {
+                depth = prof.depth;
+                slope = prof.slope;
+              } else depth += cm.width;
+            }
+          }
+        }
+        const pen = arc - (p.clearance + depth);
         if (pen > 0) {
           N = K_BIND * pen;
-          axD = -N * prof.slope;
+          axD = -N * slope;
         }
       }
       this.body[i] = body;
@@ -473,6 +494,13 @@ export class LockSim {
         nyd = S;
         if (nvd < 0) nvd = 0;
       }
+      // In a countermilled core the same goes for a driver whose end is in
+      // the wider bore: it lands on the ledge below it.
+      const onLedge = !!cm && s > 0 && s <= cm.depth && arc > p.clearance + DRIVER_CHAMFER;
+      if (onLedge && nyd < S - cm!.depth) {
+        nyd = S - cm!.depth;
+        if (nvd < 0) nvd = 0;
+      }
       // Likewise a key pin cannot rise into a misaligned housing hole.
       if (u <= 0 && nyk + p.keyLen - S > 0 && arc > p.clearance + KEY_BEVEL) {
         nyk = S - p.keyLen;
@@ -492,7 +520,10 @@ export class LockSim {
       if (overlap > 0) {
         const M = mk + md;
         const v = (mk * nvk + md * nvd) / M;
-        if (nyd <= S && s <= 0 && arc > p.clearance + DRIVER_CHAMFER) {
+        if (
+          (nyd <= S && s <= 0 && arc > p.clearance + DRIVER_CHAMFER) ||
+          (onLedge && nyd <= S - cm!.depth)
+        ) {
           // Driver is held by the plug ledge; the key pin yields.
           nyk -= overlap;
         } else if (nyk <= p.floor) {

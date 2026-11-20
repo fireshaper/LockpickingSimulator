@@ -83,8 +83,8 @@ function section(b: Brush, cut: Section, len: number) {
  * A chamber bore for one pin: a cylinder along the pin's own axis, from r0 to
  * r1 measured from the plug centre.
  */
-function chamberBore(pin: PinSpec, r0: number, r1: number) {
-  const cr = GEO.chamberR * MM;
+function chamberBore(pin: PinSpec, r0: number, r1: number, wider = 0) {
+  const cr = GEO.chamberR * MM + wider;
   const c = new THREE.CylinderGeometry(cr, cr, r1 - r0, 32);
   c.deleteAttribute('uv');
   c.translate(0, (r0 + r1) / 2, 0);
@@ -245,7 +245,12 @@ function plugGeometry(spec: LockSpec, cut: Section) {
       const slot = new THREE.BoxGeometry(WAFER.thick * MM + 0.12, 2 * R + 2, WAFER.bodyHalfW * 2 * MM + 0.3);
       slot.deleteAttribute('uv');
       b = subtract(b, brush(slot, pin.x * MM, 0, 0));
-    } else if (pin.part !== 'inner') b = subtract(b, chamberBore(pin, pin.floor * MM, R + 2));
+    } else if (pin.part !== 'inner') {
+      b = subtract(b, chamberBore(pin, pin.floor * MM, R + 2));
+      // Countermilling: the top of the chamber bored out wider, down to a ledge.
+      const cm = spec.countermill;
+      if (cm) b = subtract(b, chamberBore(pin, (geo.shearY - cm.depth) * MM, R + 2, cm.width * MM));
+    }
   }
   return finish(section(b, cut, L));
 }

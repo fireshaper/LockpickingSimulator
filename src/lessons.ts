@@ -115,6 +115,12 @@ const serratedDriver: LessonStep = {
   done: (s) => any(s, (p) => p.serratedDriver && p.status === 'set'),
 };
 
+const countermill: LessonStep = {
+  title: 'Past the countermilling',
+  text: 'This core is countermilled: the top of each chamber is bored out wider, down to a ledge just below the shear line. Lift the binding pin and you get a click and the plug turns a hair, but the pin does not go green: its driver has only come up into the wider bore, and rests on the ledge when you let go. Carry on with the other pins. When that pin binds again, lift it the rest of the way until it goes green.',
+  done: (s) => count(s, 'set') >= 1,
+};
+
 const serratedKey = (which: string): LessonStep => ({
   title: 'Stop at the set',
   text: `${which} serrations at the top. Push one even slightly past the shear line and a serration catches: the pin goes red and stays up. Lift slowly and stop the moment a pin goes green. Set one of the pins whose key pin is grooved.`,
@@ -371,7 +377,7 @@ const LESSONS: Record<string, Lesson> = {
  * Lesson for a lock someone built: the basic steps, plus the steps for each
  * kind of security pin they put in it.
  */
-export function customLesson(pins: LessonPin[]): Lesson {
+export function customLesson(pins: LessonPin[], countermilled = false): Lesson {
   const spool = pins.some((p) => p.spool);
   const serrated = pins.some((p) => p.serratedDriver);
   const grooved = pins.some((p) => p.serratedKey);
@@ -380,6 +386,7 @@ export function customLesson(pins: LessonPin[]): Lesson {
       ? tension(6, 9, `${WHY_PIN} Serrated key pins need very light tension: any more and one jams the moment its driver clears.`)
       : tension(5, spool || serrated ? 18 : 25, WHY_PIN),
     findBinder(HOOK_HOW),
+    ...(countermilled ? [countermill] : []),
     serrated ? serratedDriver : setFirst(),
   ];
   if (spool) steps.push(falseSet, workSpool);

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  COUNTERMILL,
   DEEP_HOOK_PICK,
   DIAMOND_PICK,
   DRIVER_LEN,
@@ -866,6 +867,80 @@ describe('serrated drivers', () => {
         expect(drops, at).toBe(0);
         expect(clicks, at).toBeGreaterThan(0);
       }
+    }
+  });
+});
+
+describe('countermilled core', () => {
+  const stacks = [0, 1, 2, 3, 4].map(() => ({
+    key: 'standard' as const,
+    driver: 'standard' as const,
+    length: 5,
+  }));
+
+  it('is only there when asked for', () => {
+    expect(generateLock(customPreset(stacks), 1).countermill).toBeFalsy();
+    expect(generateLock(customPreset(stacks, true), 1).countermill).toEqual(COUNTERMILL);
+  });
+
+  // Lift the first binder until the plug moves on, then take the pick away.
+  const firstClick = (countermilled: boolean) => {
+    const sim = new LockSim(generateLock(customPreset(stacks, countermilled), 1));
+    const pk = sim.spec.pick;
+    const input: SimInput = { torque: 0.008, pickX: pk.minX, pickY: pk.minY, pickIn: true };
+    run(sim, 0.2, input);
+    const i = Array.from({ length: sim.n }, (_, k) => k).find((k) => sim.status(k) === 'binding')!;
+    const before = sim.theta;
+    input.pickX = sim.spec.pins[i].x;
+    while (sim.status(i) === 'binding' && input.pickY < pk.maxY) {
+      input.pickY += 4e-3 * FRAME;
+      sim.step(FRAME, input);
+    }
+    const turned = (sim.theta - before) * GEO.plugR;
+    while (input.pickY > pk.minY) {
+      input.pickY -= 20e-3 * FRAME;
+      sim.step(FRAME, input);
+    }
+    run(sim, 0.3, input);
+    return { sim, i, turned };
+  };
+
+  it('a lifted driver clicks into the wider bore and rests on the ledge, not set', () => {
+    const plain = firstClick(false);
+    expect(plain.sim.status(plain.i)).toBe('set');
+
+    const { sim, i, turned } = firstClick(true);
+    // The plug turned on, as it does for a set...
+    expect(turned).toBeGreaterThan(5e-6);
+    // ...but the driver still crosses the shear line, sitting on the ledge.
+    expect(sim.status(i)).not.toBe('set');
+    expect(GEO.shearY - sim.yd[i]).toBeGreaterThan(COUNTERMILL.depth - 0.03e-3);
+    expect(GEO.shearY - sim.yd[i]).toBeLessThan(COUNTERMILL.depth + 0.03e-3);
+    // The key pin has fallen away from it, as under a set pin.
+    expect(sim.yk[i]).toBeCloseTo(sim.spec.pins[i].floor, 5);
+    // Letting go of the tension lets it drop back.
+    run(sim, 0.4, { torque: 0, pickX: PICK.minX, pickY: PICK.minY, pickIn: true });
+    expect(sim.yd[i]).toBeCloseTo(sim.spec.pins[i].floor + sim.spec.pins[i].keyLen, 5);
+  });
+
+  it('opens once every pin has been lifted a second time, past the rim', () => {
+    for (const seed of [1, 2]) {
+      const plain = new LockSim(generateLock(customPreset(stacks), seed));
+      const lifts = autoPick(plain, 0.008).length;
+      const sim = new LockSim(generateLock(customPreset(stacks, true), seed));
+      const log = autoPick(sim, 0.008);
+      expect(plain.opened).toBe(true);
+      expect(sim.opened, log.join('; ')).toBe(true);
+      expect(log.length).toBeGreaterThanOrEqual(lifts + 4);
+    }
+  });
+
+  it('still opens with security drivers in it', () => {
+    for (const driver of ['serrated', 'spool'] as const) {
+      const mixed = stacks.map((q, k) => ({ ...q, driver: k % 2 ? driver : q.driver }));
+      const sim = new LockSim(generateLock(customPreset(mixed, true), 2));
+      const log = autoPick(sim, 0.008, 90);
+      expect(sim.opened, `${driver}: ${log.join('; ')}`).toBe(true);
     }
   });
 });
